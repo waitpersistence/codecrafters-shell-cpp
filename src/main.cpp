@@ -23,6 +23,15 @@ int main() {
       // 逻辑判断
         if (order == "echo") {
             std::cout << arguments << std::endl;
+        }else if(order =="type"){
+          if(arguments=="echo"||arguments=="exit"||arguments=="type"){
+            std::cout<<arguments<<" is a shell builtin"<<std::endl;
+          }else{
+            std::cout << arguments << ": not found" << std::endl;
+          }
+
+          
+        
         }
     }else{
       if (command == "echo"){
