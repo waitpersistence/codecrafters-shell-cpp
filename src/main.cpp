@@ -1,13 +1,13 @@
 #include <iostream>
 #include <string>
-
+#include "utils.h"
 int main() {
   // Flush after every std::cout / std:cerr
   std::cout << std::unitbuf;
   std::cerr << std::unitbuf;
 
   // TODO: Uncomment the code below to pass the first stage
-  
+  //print_welcome();
   while (true)
   {
     std::cout << "$ ";
@@ -27,7 +27,12 @@ int main() {
           if(arguments=="echo"||arguments=="exit"||arguments=="type"){
             std::cout<<arguments<<" is a shell builtin"<<std::endl;
           }else{
+            std::string path=get_path_of_command(arguments);
+            if(!path.empty()){
+              std::cout<<arguments<<" is "<<path<<std::endl;
+            }else{
             std::cout << arguments << ": not found" << std::endl;
+            }
           }
 
           
