@@ -7,6 +7,7 @@
 #include <sys/wait.h>
 #include <filesystem>
 
+namespace fs = std::filesystem;
 int main() {
   // Flush after every std::cout / std:cerr
   std::cout << std::unitbuf;
@@ -26,13 +27,15 @@ int main() {
     }
     size_t space_pos=command.find(" ");
     if(space_pos!=std::string::npos){
+      //带有参数的命令
       std::string order=command.substr(0,space_pos);
       std::string arguments = command.substr(space_pos + 1);
-      // 逻辑判断
+      
         if (order == "echo") {
             std::cout << arguments << std::endl;
         }else if(order =="type"){
-          if(arguments=="echo"||arguments=="exit"||arguments=="type"||arguments=="pwd"){
+          if(arguments=="echo"||arguments=="exit"||arguments=="type"||arguments=="pwd"||
+            arguments=="cd"){
             std::cout<<arguments<<" is a shell builtin"<<std::endl;
           }
           else{
@@ -43,7 +46,29 @@ int main() {
             std::cout << arguments << ": not found" << std::endl;
             }
           }          
-        }else{
+        }else if(order=="cd"){
+          std::string path=get_path_of_command(order);
+          std::stringstream ss(arguments);
+          std::string temp;
+          while(ss>>temp){
+                args_list.push_back(temp);
+          }
+          if(args_list.empty()){
+            const char* home = std::getenv("HOME");
+            if (home) {
+                fs::current_path(home);
+            }
+          }else {
+            std::string target_path=args_list[0];
+            try{
+              fs::current_path(target_path);
+            }catch(const fs::filesystem_error& e){
+              // 如果目录不存在或权限不足，打印错误
+              std::cout << "cd: " << target_path << ": No such file or directory" << std::endl;
+            }
+          }
+        }
+        else{
         std::string path=get_path_of_command(order);
         std::stringstream ss(arguments);
         std::string temp;
@@ -72,6 +97,7 @@ int main() {
 
     }
   }else{
+    //单独命令
       if (command == "echo"){
         std::cout << "" << std::endl; // echo 空内容只打印一个换行
       }
