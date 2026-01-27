@@ -5,6 +5,8 @@
 #include <sstream>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <filesystem>
+
 int main() {
   // Flush after every std::cout / std:cerr
   std::cout << std::unitbuf;
@@ -30,7 +32,7 @@ int main() {
         if (order == "echo") {
             std::cout << arguments << std::endl;
         }else if(order =="type"){
-          if(arguments=="echo"||arguments=="exit"||arguments=="type"){
+          if(arguments=="echo"||arguments=="exit"||arguments=="type"||arguments=="pwd"){
             std::cout<<arguments<<" is a shell builtin"<<std::endl;
           }
           else{
@@ -73,7 +75,9 @@ int main() {
       if (command == "echo"){
         std::cout << "" << std::endl; // echo 空内容只打印一个换行
       }
-    
+      else if(command== "pwd"){
+        std::cout << std::filesystem::current_path().string() << std::endl;
+      }
       else {
             std::cout << command << ": command not found" << std::endl;
       }
