@@ -6,6 +6,8 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <filesystem>
+#include <cstdlib>
+
 
 namespace fs = std::filesystem;
 int main() {
@@ -53,10 +55,13 @@ int main() {
           while(ss>>temp){
                 args_list.push_back(temp);
           }
-          if(args_list.empty()){
-            const char* home = std::getenv("HOME");
-            if (home) {
-                fs::current_path(home);
+          std::string target_path = args_list[0];
+          if(!target_path.empty() && target_path[0] == '~'){
+            const char* home_env = std::getenv("HOME");
+            if (home_env) {
+                std::string home_dir = home_env;
+                target_path.replace(0, 1, home_dir);
+                fs::current_path(target_path);
             }
           }else {
             std::string target_path=args_list[0];
