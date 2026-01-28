@@ -8,6 +8,36 @@
 
 namespace fs = std::filesystem; // 起个别名，方便后面写
 // 2. 函数的具体实现
+
+//分词，区分命令
+std::vector<std::string> split_arguments(const std::string& command){
+    std::vector<std::string> args;
+    std::string current_token;
+    bool in_single_quotes=false;
+    
+    for(size_t i=0;i<command.length();i++){
+        char c=command[i];
+        if(c=='\''){
+            in_single_quotes=!in_single_quotes;
+        }
+        else if(c==' ' && !in_single_quotes){
+            if(!current_token.empty()){
+                args.push_back(current_token);
+                current_token.clear();
+            }
+        }
+        else{
+            current_token +=c;
+        }
+        
+    }
+    // 处理最后一个残留在缓冲区里的参数
+        if (!current_token.empty()) {
+            args.push_back(current_token);
+        }
+    
+    return args;
+}
 void print_welcome() {
     std::cout << "------------------------------------" << std::endl;
     std::cout << "   Welcome to My CodeCrafters Shell " << std::endl;

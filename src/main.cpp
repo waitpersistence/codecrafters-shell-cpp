@@ -21,21 +21,43 @@ int main() {
   {
     std::cout << "$ ";
     std::string command;
-    std::vector<std::string> args_list;
-    
+
     std::getline(std::cin,command);
-    if (command == "exit"){
-      break;
+    
+    std::vector<std::string> all_tokens = split_arguments(command);
+    if (all_tokens.empty()) continue;
+
+    std::string order = all_tokens[0];
+   
+    // 将剩余的 token 存入你之前的 args_list
+    std::vector<std::string> args_list;
+    for (size_t i = 1; i < all_tokens.size(); ++i) {
+        args_list.push_back(all_tokens[i]); // 这会自动拿到 /tmp/ant/f   11（不带引号）
     }
-    size_t space_pos=command.find(" ");
-    if(space_pos!=std::string::npos){
+   
+    
+   
+   
       //带有参数的命令
-      std::string order=command.substr(0,space_pos);
-      std::string arguments = command.substr(space_pos + 1);
-      
-        if (order == "echo") {
-            std::cout << arguments << std::endl;
+      // std::string order=command.substr(0,space_pos);
+      //std::string arguments = command.substr(space_pos + 1);
+        if (order == "exit"){
+          break;
+        }
+        else if (order == "echo") {
+            for(size_t i=0;i<args_list.size();i++){
+              std::cout<<args_list[i];
+              if(i<args_list.size()-1){
+                std::cout<<" ";
+              }
+              
+            }
+            std::cout<<std::endl;
         }else if(order =="type"){
+            if(args_list.empty()){
+              continue;
+            }
+            std::string arguments = args_list[0]; // 获取要查询的命令名
           if(arguments=="echo"||arguments=="exit"||arguments=="type"||arguments=="pwd"||
             arguments=="cd"){
             std::cout<<arguments<<" is a shell builtin"<<std::endl;
@@ -49,6 +71,7 @@ int main() {
             }
           }          
         }else if(order=="cd"){
+          std::string arguments = args_list[0];
           std::string path=get_path_of_command(order);
           std::stringstream ss(arguments);
           std::string temp;
@@ -73,47 +96,45 @@ int main() {
             }
           }
         }
-        else{
-        std::string path=get_path_of_command(order);
-        std::stringstream ss(arguments);
-        std::string temp;
-         if(!path.empty()){
-              pid_t pid=fork();
-              if(pid==0){
-                while(ss>>temp){
-                  args_list.push_back(temp);
-                }
-                std::vector<char*> exec_args;
-                exec_args.push_back(const_cast<char*>(order.c_str()));
-                for(int i=0;i<args_list.size();i++){
-                  exec_args.push_back(const_cast<char*>(args_list[i].c_str()));
-                }
-                exec_args.push_back(nullptr);
-              
-                execv(path.c_str(), exec_args.data());
-                exit(1);
-              }
-              else if(pid>0){
-              wait(NULL);
-              }else{
-              std::cerr<<"Fork failed!"<<std::endl;
-              }
-          }
-
-    }
-  }else{
-    //单独命令
-      if (command == "echo"){
-        std::cout << "" << std::endl; // echo 空内容只打印一个换行
-      }
-      else if(command== "pwd"){
+        else if(order== "pwd"){
         std::cout << std::filesystem::current_path().string() << std::endl;
-      }
-      else {
+          }
+       else{
+          
+          std::string path=get_path_of_command(order);
+          
+          if(!path.empty()){
+                pid_t pid=fork();
+                if(pid==0){
+                  
+                  
+                  std::vector<char*> exec_args;
+                  exec_args.push_back(const_cast<char*>(order.c_str()));
+                  for(int i=0;i<args_list.size();i++){
+                    //std::cout<<args_list[i]<<std::endl;
+                    exec_args.push_back(const_cast<char*>(args_list[i].c_str()));
+                  }
+                  exec_args.push_back(nullptr);
+                
+                  execv(path.c_str(), exec_args.data());
+                  exit(1);
+                }
+                else if(pid>0){
+                wait(NULL);
+                }else{
+                std::cerr<<"Fork failed!"<<std::endl;
+                }
+            }
+            else {
             std::cout << command << ": command not found" << std::endl;
-      }
-    }
+            }
+
+        }
   
+    
+      
+      
+    }
+    return 0;
   }
-  return 0;
-}
+  
