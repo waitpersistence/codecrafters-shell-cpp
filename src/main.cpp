@@ -45,6 +45,7 @@ int main() {
           break;
         }
         else if (order == "echo") {
+            
             for(size_t i=0;i<args_list.size();i++){
               std::cout<<args_list[i];
               if(i<args_list.size()-1){
@@ -99,15 +100,13 @@ int main() {
         else if(order== "pwd"){
         std::cout << std::filesystem::current_path().string() << std::endl;
           }
-       else{
+        else{
           
           std::string path=get_path_of_command(order);
           
           if(!path.empty()){
                 pid_t pid=fork();
                 if(pid==0){
-                  
-                  
                   std::vector<char*> exec_args;
                   exec_args.push_back(const_cast<char*>(order.c_str()));
                   for(int i=0;i<args_list.size();i++){
@@ -125,14 +124,11 @@ int main() {
                 std::cerr<<"Fork failed!"<<std::endl;
                 }
             }
-            else {
+          else {
             std::cout << command << ": command not found" << std::endl;
-            }
+          }
 
         }
-  
-    
-      
       
     }
     return 0;

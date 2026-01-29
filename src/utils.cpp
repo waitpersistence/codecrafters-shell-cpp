@@ -14,28 +14,45 @@ std::vector<std::string> split_arguments(const std::string& command){
     std::vector<std::string> args;
     std::string current_token;
     bool in_single_quotes=false;
-    
+    bool in_double_quotes = false;
+    bool is_escaped = false; // 处理反斜杠 
     for(size_t i=0;i<command.length();i++){
         char c=command[i];
-        if(c=='\''){
-            in_single_quotes=!in_single_quotes;
+        if(is_escaped){
+            current_token+=c;
+            is_escaped=false;
         }
-        else if(c==' ' && !in_single_quotes){
-            if(!current_token.empty()){
+        else if(c=='\\'){
+            if(in_single_quotes){
+                current_token+=c;
+            }else{
+                is_escaped=true;
+            }
+        }
+        else if (c == '\'' && !in_double_quotes) {
+            // 遇到单引号：只有不在双引号内时，它才起作用
+            in_single_quotes = !in_single_quotes;
+        }
+        else if (c == '\"' && !in_single_quotes) {
+            // 遇到双引号：只有不在单引号内时，它才起作用
+            in_double_quotes = !in_double_quotes;
+        }
+        else if (c == ' ' && !in_single_quotes && !in_double_quotes) {
+            // 只有在所有引号之外的空格，才执行切分
+            if (!current_token.empty()) {
                 args.push_back(current_token);
                 current_token.clear();
             }
+        } 
+        else {
+            // 其他所有情况，直接存入
+            current_token += c;
         }
-        else{
-            current_token +=c;
-        }
-        
     }
-    // 处理最后一个残留在缓冲区里的参数
-        if (!current_token.empty()) {
-            args.push_back(current_token);
-        }
-    
+    if (!current_token.empty()) {
+        args.push_back(current_token);
+    }
+
     return args;
 }
 void print_welcome() {
