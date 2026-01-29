@@ -51,7 +51,6 @@ int main() {
               if(i<args_list.size()-1){
                 std::cout<<" ";
               }
-              
             }
             std::cout<<std::endl;
         }else if(order =="type"){
@@ -101,9 +100,17 @@ int main() {
         std::cout << std::filesystem::current_path().string() << std::endl;
           }
         else{
-          
-          std::string path=get_path_of_command(order);
-          
+          std::string path;
+          // 1. 优先检查 order 是否直接指向一个存在的文件（处理本地带空格的可执行文件）
+          if (fs::exists(order) && !fs::is_directory(order)) {
+              path = order;
+          } 
+          // 2. 如果本地找不到，再去 PATH 环境变量里搜
+          else {
+              path = get_path_of_command(order);
+          }
+
+
           if(!path.empty()){
                 pid_t pid=fork();
                 if(pid==0){
@@ -125,7 +132,7 @@ int main() {
                 }
             }
           else {
-            std::cout << command << ": command not found" << std::endl;
+            std::cout << order << ": command not found" << std::endl;
           }
 
         }

@@ -25,6 +25,12 @@ std::vector<std::string> split_arguments(const std::string& command){
         else if(c=='\\'){
             if(in_single_quotes){
                 current_token+=c;
+            }else if(in_double_quotes){
+                if(i+1<command.length() && (command[i+1]=='"'||command[i+1]=='\\')){
+                    is_escaped=true;
+                }else{
+                    current_token+=c;
+                }
             }else{
                 is_escaped=true;
             }
