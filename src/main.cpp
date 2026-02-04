@@ -7,7 +7,7 @@
 #include <sys/wait.h>
 #include <filesystem>
 #include <cstdlib>
-
+#include <fcntl.h>
 
 namespace fs = std::filesystem;
 int main() {
@@ -27,12 +27,59 @@ int main() {
     std::vector<std::string> all_tokens = split_arguments(command);
     if (all_tokens.empty()) continue;
 
-    std::string order = all_tokens[0];
+    std::string redirect_file="";
+    bool is_append=false;
+    int redirect_fd_type=1;
+
+    std::vector<std::string> filtered_tokens;
+    for(size_t i=0;i < all_tokens.size();i++){
+      if(all_tokens[i]==">" || all_tokens[i]=="1>"){
+        if(i+1<all_tokens.size()){
+          redirect_file=all_tokens[i+1];
+          is_append=false;
+          i++;//跳过名字
+        }
+      }
+      else if(all_tokens[i]==">>"||all_tokens[i]=="1>>"){
+          //>> 是增加到尾部
+          if(i+1<all_tokens.size()){
+            redirect_file=all_tokens[i+1];
+            is_append=true;
+            i++;
+          }
+      }
+      else if(all_tokens[i]=="2>"){
+          //stderr
+          if(i+1<all_tokens.size()){
+            redirect_file=all_tokens[i+1];
+            redirect_fd_type=2;
+            is_append=false;
+            i++;
+          }
+        }
+      else if(all_tokens[i]=="2>>"){
+        //stderr append
+        if(i+1<all_tokens.size()){
+          redirect_file=all_tokens[i+1];
+          redirect_fd_type=2;
+          is_append=true;
+          i++;
+        }
+      }
+      else{
+          filtered_tokens.push_back(all_tokens[i]);
+      }
+      
+    }
+
+    if (filtered_tokens.empty()) continue;
+    std::string order = filtered_tokens[0];
+  
    
     // 将剩余的 token 存入你之前的 args_list
     std::vector<std::string> args_list;
-    for (size_t i = 1; i < all_tokens.size(); ++i) {
-        args_list.push_back(all_tokens[i]); // 这会自动拿到 /tmp/ant/f   11（不带引号）
+    for (size_t i = 1; i < filtered_tokens.size(); ++i) {
+        args_list.push_back(filtered_tokens[i]); // 这会自动拿到 /tmp/ant/f   11（不带引号）
     }
    
     
@@ -45,7 +92,15 @@ int main() {
           break;
         }
         else if (order == "echo") {
-            
+            int saved_stdout=-1;
+            int target_fd=(redirect_fd_type==2)?STDERR_FILENO : STDOUT_FILENO;
+            if(!redirect_file.empty()){
+              saved_stdout=dup(target_fd);
+              int flags = O_WRONLY | O_CREAT | (is_append ? O_APPEND : O_TRUNC);
+              int fd = open(redirect_file.c_str(), flags, 0644);
+              dup2(fd, target_fd);
+              close(fd);
+            }
             for(size_t i=0;i<args_list.size();i++){
               std::cout<<args_list[i];
               if(i<args_list.size()-1){
@@ -53,6 +108,11 @@ int main() {
               }
             }
             std::cout<<std::endl;
+            // 恢复现场
+            if (saved_stdout != -1) {
+                dup2(saved_stdout, target_fd);
+                close(saved_stdout);
+            }
         }else if(order =="type"){
             if(args_list.empty()){
               continue;
@@ -100,6 +160,7 @@ int main() {
         std::cout << std::filesystem::current_path().string() << std::endl;
           }
         else{
+          //外部命令
           std::string path;
           // 1. 优先检查 order 是否直接指向一个存在的文件（处理本地带空格的可执行文件）
           if (fs::exists(order) && !fs::is_directory(order)) {
@@ -110,10 +171,30 @@ int main() {
               path = get_path_of_command(order);
           }
 
-
+         // std::cerr << "[DEBUG] Opening file: " << redirect_file << std::endl;
           if(!path.empty()){
                 pid_t pid=fork();
                 if(pid==0){
+                  //子进程切换执行
+                  if(!redirect_file.empty()){
+                    int flags=O_WRONLY | O_CREAT;
+                    if(is_append){
+                      flags |=O_APPEND;
+                    }else{
+                      flags |=O_TRUNC;
+                    }
+                    int fd=open(redirect_file.c_str(),flags,0644);
+                    if(fd<0){
+                      perror("open");
+                      exit(1);
+                    }
+
+                    if(dup2(fd,redirect_fd_type)<0){
+                      perror("dup2");
+                      exit(1);
+                    }
+                    close(fd);//关闭对之前打开文件的控制，没影响，因为此时 标准输出1连接这个文件
+                  }
                   std::vector<char*> exec_args;
                   exec_args.push_back(const_cast<char*>(order.c_str()));
                   for(int i=0;i<args_list.size();i++){
