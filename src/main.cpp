@@ -8,6 +8,9 @@
 #include <filesystem>
 #include <cstdlib>
 #include <fcntl.h>
+#include "autocomplete.h"
+#include <readline/readline.h>
+#include <readline/history.h>
 
 namespace fs = std::filesystem;
 int main() {
@@ -17,12 +20,33 @@ int main() {
 
   // TODO: Uncomment the code below to pass the first stage
   //print_welcome();
+  initialize_readline();
   while (true)
   {
-    std::cout << "$ ";
-    std::string command;
+    // 1. 用 C 指针接住 Readline 的返回值
+    char* temp_ptr = readline("$ ");
 
-    std::getline(std::cin,command);
+    // 2. 检查是否遇到了 Ctrl+D (EOF)
+    if (temp_ptr == nullptr) {
+        std::cout << "\nExit" << std::endl;
+        break;
+    }
+    
+    
+    std::string command = temp_ptr;
+
+    
+    if (!command.empty()) {
+        add_history(temp_ptr); // 历史记录依然建议传原始指针
+        
+        // 这里开始用你的 std::string command 做事
+        if (command == "exit") {
+            free(temp_ptr); // 别忘了最后一次释放
+            break;
+        }
+       
+    }
+    free(temp_ptr);
     
     std::vector<std::string> all_tokens = split_arguments(command);
     if (all_tokens.empty()) continue;
