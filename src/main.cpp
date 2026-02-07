@@ -1,3 +1,4 @@
+#include <cstdio>      // 显式包含 stdio
 #include <iostream>
 #include <string>
 #include "utils.h"
@@ -9,10 +10,82 @@
 #include <cstdlib>
 #include <fcntl.h>
 #include "autocomplete.h"
+#include "pipeline.h"
 #include <readline/readline.h>
 #include <readline/history.h>
+#include <algorithm>
+
+Command parse_command(const std::vector<std::string>& tokens){
+  
+  Command cmd;
+  for(size_t i=0;i < tokens.size();i++){
+        if(tokens[i]==">" || tokens[i]=="1>"){
+          if(i+1<tokens.size()){
+            cmd.redirect_file=tokens[i+1];
+            cmd.is_append=false;
+            i++;//跳过名字
+          }
+        }
+        else if(tokens[i]==">>"||tokens[i]=="1>>"){
+            //>> 是增加到尾部
+            if(i+1<tokens.size()){
+              cmd.redirect_file=tokens[i+1];
+              cmd.is_append=true;
+              i++;
+            }
+        }
+        else if(tokens[i]=="2>"){
+            //stderr
+            if(i+1<tokens.size()){
+              cmd.redirect_file=tokens[i+1];
+              cmd.redirect_fd_type=2;
+              cmd.is_append=false;
+              i++;
+            }
+          }
+        else if(tokens[i]=="2>>"){
+          //stderr append
+          if(i+1<tokens.size()){
+            cmd.redirect_file=tokens[i+1];
+            cmd.redirect_fd_type=2;
+            cmd.is_append=true;
+            i++;
+          }
+        }
+        else{
+            cmd.args.push_back(tokens[i]);
+        }
+        
+      }
+      return cmd;
+}
+std::vector<Command> parse_pipeline(const std::vector<std::string>& all_tokens) {
+    std::vector<Command> pipeline;
+    std::vector<std::string> current_cmd_tokens;
+
+    for (const auto& token : all_tokens) {
+        if (token == "|") {
+            // 遇到管道符，说明前一个命令结束了
+            if (!current_cmd_tokens.empty()) {
+                pipeline.push_back(parse_command(current_cmd_tokens));
+                current_cmd_tokens.clear();
+            }
+        } else {
+            current_cmd_tokens.push_back(token);
+        }
+    }
+
+    // 处理最后一个管道符之后的命令
+    if (!current_cmd_tokens.empty()) {
+        pipeline.push_back(parse_command(current_cmd_tokens));
+    }
+
+    return pipeline;
+}
 
 namespace fs = std::filesystem;
+
+
 int main() {
   // Flush after every std::cout / std:cerr
   std::cout << std::unitbuf;
@@ -32,7 +105,6 @@ int main() {
         break;
     }
     
-    
     std::string command = temp_ptr;
 
     
@@ -48,65 +120,32 @@ int main() {
     }
     free(temp_ptr);
     
-    std::vector<std::string> all_tokens = split_arguments(command);
-    if (all_tokens.empty()) continue;
 
-    std::string redirect_file="";
-    bool is_append=false;
-    int redirect_fd_type=1;
+    std::vector<std::string> tokens = split_arguments(command);
+    if (tokens.empty()) continue;
+    // 2. 解析成管道链条
+    std::vector<Command> pipeline = parse_pipeline(tokens);
 
-    std::vector<std::string> filtered_tokens;
-    for(size_t i=0;i < all_tokens.size();i++){
-      if(all_tokens[i]==">" || all_tokens[i]=="1>"){
-        if(i+1<all_tokens.size()){
-          redirect_file=all_tokens[i+1];
-          is_append=false;
-          i++;//跳过名字
-        }
-      }
-      else if(all_tokens[i]==">>"||all_tokens[i]=="1>>"){
-          //>> 是增加到尾部
-          if(i+1<all_tokens.size()){
-            redirect_file=all_tokens[i+1];
-            is_append=true;
-            i++;
-          }
-      }
-      else if(all_tokens[i]=="2>"){
-          //stderr
-          if(i+1<all_tokens.size()){
-            redirect_file=all_tokens[i+1];
-            redirect_fd_type=2;
-            is_append=false;
-            i++;
-          }
-        }
-      else if(all_tokens[i]=="2>>"){
-        //stderr append
-        if(i+1<all_tokens.size()){
-          redirect_file=all_tokens[i+1];
-          redirect_fd_type=2;
-          is_append=true;
-          i++;
-        }
-      }
-      else{
-          filtered_tokens.push_back(all_tokens[i]);
-      }
-      
+    if (pipeline.empty()) continue;
+    if (pipeline.size() != 1) {
+        
+        execute_multi_pipeline(pipeline);
+        continue; // 管道处理完，进入下一轮循环
     }
+    Command single_cmd = parse_command(tokens);
 
-    if (filtered_tokens.empty()) continue;
-    std::string order = filtered_tokens[0];
+   
+   
+    std::string order = single_cmd.args[0];
   
    
     // 将剩余的 token 存入你之前的 args_list
     std::vector<std::string> args_list;
-    for (size_t i = 1; i < filtered_tokens.size(); ++i) {
-        args_list.push_back(filtered_tokens[i]); // 这会自动拿到 /tmp/ant/f   11（不带引号）
+    for (size_t i = 1; i < single_cmd.args.size(); ++i) {
+        args_list.push_back(single_cmd.args[i]); // 这会自动拿到 /tmp/ant/f   11（不带引号）
     }
    
-    
+
    
    
       //带有参数的命令
@@ -117,11 +156,11 @@ int main() {
         }
         else if (order == "echo") {
             int saved_stdout=-1;
-            int target_fd=(redirect_fd_type==2)?STDERR_FILENO : STDOUT_FILENO;
-            if(!redirect_file.empty()){
+            int target_fd=(single_cmd.redirect_fd_type==2)?STDERR_FILENO : STDOUT_FILENO;
+            if(!single_cmd.redirect_file.empty()){
               saved_stdout=dup(target_fd);
-              int flags = O_WRONLY | O_CREAT | (is_append ? O_APPEND : O_TRUNC);
-              int fd = open(redirect_file.c_str(), flags, 0644);
+              int flags = O_WRONLY | O_CREAT | (single_cmd.is_append ? O_APPEND : O_TRUNC);
+              int fd = open(single_cmd.redirect_file.c_str(), flags, 0644);
               dup2(fd, target_fd);
               close(fd);
             }
@@ -200,20 +239,20 @@ int main() {
                 pid_t pid=fork();
                 if(pid==0){
                   //子进程切换执行
-                  if(!redirect_file.empty()){
+                  if(!single_cmd.redirect_file.empty()){
                     int flags=O_WRONLY | O_CREAT;
-                    if(is_append){
+                    if(single_cmd.is_append){
                       flags |=O_APPEND;
                     }else{
                       flags |=O_TRUNC;
                     }
-                    int fd=open(redirect_file.c_str(),flags,0644);
+                    int fd=open(single_cmd.redirect_file.c_str(),flags,0644);
                     if(fd<0){
                       perror("open");
                       exit(1);
                     }
 
-                    if(dup2(fd,redirect_fd_type)<0){
+                    if(dup2(fd,single_cmd.redirect_fd_type)<0){
                       perror("dup2");
                       exit(1);
                     }
